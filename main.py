@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -7,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 
-DATABASE_PATH = Path(__file__).with_name("dangky.db")
+DATABASE_PATH = os.getenv("DB_PATH", str(Path(__file__).with_name("dangky.db")))
 
 
 class DangKy(BaseModel):
