@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -7,7 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 
-DATABASE_PATH = Path(__file__).with_name("dangky.db")
+SUC_CHUA = 30
+DATABASE_PATH = os.getenv("DB_PATH", str(Path(__file__).with_name("dangky.db")))
 
 
 class DangKy(BaseModel):
@@ -52,11 +54,21 @@ def khoi_dong():
 @app.post("/api/dang-ky", status_code=status.HTTP_201_CREATED, response_model=KetQua, responses={409: {"description": "Đã đăng ký"}})
 def dang_ky(thong_tin: DangKy):
     try:
-        with closing(sqlite3.connect(DATABASE_PATH)) as connection:
-            connection.execute(
-                "INSERT INTO dang_ky (ma_sv, ma_phien) VALUES (?, ?)",
-                (thong_tin.ma_sv.strip(), thong_tin.ma_phien.strip()),
-            )
+        with closing(sqlite3.connect(DATABASE_PATH, timeout=30)) as connection:
+            ma_sv, ma_phien = thong_tin.ma_sv.strip(), thong_tin.ma_phien.strip()
+            if connection.execute("SELECT 1 FROM dang_ky WHERE ma_sv = ? AND ma_phien = ?", (ma_sv, ma_phien)).fetchone():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="DA_DANG_KY")
+            # Đếm và ghi trong MỘT câu lệnh: SQLite thực thi nguyên tử, không có khe hở để chen vào.
+            con_cho = connection.execute(
+                """
+                INSERT INTO dang_ky (ma_sv, ma_phien)
+                SELECT ?, ?
+                WHERE (SELECT COUNT(*) FROM dang_ky WHERE ma_phien = ?) < ?
+                """,
+                (ma_sv, ma_phien, ma_phien, SUC_CHUA),
+            ).rowcount
+            if con_cho == 0:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="HET_CHO")
             connection.commit()
     except sqlite3.IntegrityError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="DA_DANG_KY") from error
