@@ -73,3 +73,12 @@ def dang_ky(thong_tin: DangKy):
     except sqlite3.IntegrityError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="DA_DANG_KY") from error
     return {"ok": True}
+
+
+@app.get("/api/con-cho")
+def con_cho(ma_phien: str):
+    with closing(sqlite3.connect(DATABASE_PATH)) as connection:
+        (so_cho,) = connection.execute(
+            "SELECT COUNT(*) FROM dang_ky WHERE ma_phien = ?", (ma_phien.strip(),)
+        ).fetchone()
+    return {"con_cho": max(0, SUC_CHUA - so_cho)}
